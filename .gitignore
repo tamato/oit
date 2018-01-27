@@ -1,0 +1,7 @@
+*~
+*.sublime-workspace
+CMakeLists.txt.user
+
+external/glfw
+external/glm
+external/pnglite
