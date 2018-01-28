@@ -19,7 +19,7 @@ MeshObject::MeshObject()
     , AABBMax(-9e23f)
     , IndexRangeStart(0)
     , IndexRangeEnd(0)
-    , CleanedUp(false)
+    , CleanedUp(true)
 {
     /************************************************************************************
       According to:
@@ -158,8 +158,8 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
         if (UvOffset)
         {
             int ti = i*Stride+UvOffset;
-            vertArray[ti+0] = uv[idx+0];
-            vertArray[ti+1] = uv[idx+1];
+            vertArray[ti+0] = uv[uvidx+0];
+            vertArray[ti+1] = uv[uvidx+1];
         }
     }
 
