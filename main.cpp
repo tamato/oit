@@ -119,7 +119,7 @@ void cursorCallback(GLFWwindow* window, double x, double y)
 
 void mouseCallback(GLFWwindow* window, int btn, int action, int mods)
 {
-    if (mods == GLFW_MOD_ALT){
+    if (mods == GLFW_MOD_CONTROL){
         if (btn == GLFW_MOUSE_BUTTON_1) {
             if(action == GLFW_PRESS) {
                 double x,y;
