@@ -8,7 +8,8 @@ if [[ $1 = "rebuild" ]]; then
 fi
 
 if [[ $1 = "shaders" ]]; then
-    cp `ls ./data/ | egrep -i "\.vert|\.frag"` $(build_dir/data/)
+    cp $(find ~/programming/oit/data -iname "*.vert") $build_dir/data/ 
+    cp $(find ~/programming/oit/data -iname "*.frag") $build_dir/data/ 
 fi
 
 if [[ $1 = "make" ]]; then
