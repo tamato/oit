@@ -79,7 +79,7 @@ void MeshBuffer::setNorms(unsigned int count, const float* normals)
         exit(1);
     }
 
-    if (!normals) return;
+    if (!normals) return;  
     UsesNormals = true;
 
     Norms.clear();

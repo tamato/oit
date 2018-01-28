@@ -184,7 +184,6 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
         (GLvoid*)vertArray,
         GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Stride, bufferOffest(0));
 
     if (Normalidx)

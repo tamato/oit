@@ -255,14 +255,11 @@ void initView(){
     CameraUp = glm::vec3(0,1,0);
     CameraTarget = VenousModel.PivotPoint;
     glm::vec3 direction(0,0,1);
-    CameraPosition = VenousModel.PivotPoint + direction * adjacent;
+    CameraPosition = VenousModel.PivotPoint + direction * adjacent * 1.10f;
     Camera = glm::lookAt(CameraPosition, CameraTarget, CameraUp);
 
-    ProjectionView = Projection * Camera;
-    cout << "Point " << glm::to_string(VenousModel.PivotPoint) << endl;
-
-    auto mvp = Projection * glm::vec4(VenousModel.PivotPoint, 1);
-    cout << "MVP " << glm::to_string(mvp) << " z/-w " << (mvp.z/-mvp.w) << endl;
+    auto mvp = Camera * glm::vec4(VenousModel.PivotPoint, 1);
+    cout << "MVP " << glm::to_string(mvp) << " z " << (mvp.z) << endl;
 }
 
 void init(int argc, char* argv[]){
