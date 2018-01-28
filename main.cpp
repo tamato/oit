@@ -47,6 +47,13 @@ ProgramObject ArtShader;
 MeshObject FustrumModel;
 ProgramObject FustrumShader;
 
+ProgramObject CreateDepthVolume;
+GLuint FustrumVolume = 0;
+GLuint CavityVolume = 0;
+GLuint FustrumFramebuffer = 0;
+
+MeshObject Quad;
+ProgramObject DisplayFustrumVolume;
 
 void errorCallback(int error, const char* description)
 {
@@ -151,12 +158,12 @@ void initGLFW(){
     }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
 
-    glfwWindow = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Boids", NULL, NULL);
+    glfwWindow = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "OIT", NULL, NULL);
     if (!glfwWindow)
     {
         fprintf(stderr, "Failed to create GLFW glfwWindow\n");
@@ -207,6 +214,11 @@ void initFustrum(){
     shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuse.vert";
     shaders[GL_FRAGMENT_SHADER] = DataDirectory + "diffuse.frag";
     FustrumShader.init(shaders);
+
+    shaders.clear();
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "depth.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "thickness.frag";
+    CreateDepthVolume.init(shaders);
 }
 
 void initArt(){
@@ -257,9 +269,64 @@ void initView(){
     glm::vec3 direction(0,0,1);
     CameraPosition = VenousModel.PivotPoint + direction * adjacent * 1.10f;
     Camera = glm::lookAt(CameraPosition, CameraTarget, CameraUp);
+}
 
-    auto mvp = Camera * glm::vec4(VenousModel.PivotPoint, 1);
-    cout << "MVP " << glm::to_string(mvp) << " z " << (mvp.z) << endl;
+void createTextures() {
+    glGenTextures(1, &FustrumVolume);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RG, GL_FLOAT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenTextures(1, &CavityVolume);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, CavityVolume);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 32); 
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+}
+
+void createFrambuffer() {
+    glGenFramebuffers(1, &FustrumFramebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, FustrumFramebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, FustrumVolume, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void initQuad() {
+
+    std::vector<glm::vec3> positions = {
+        glm::vec3(-1, -1, -1),  
+        glm::vec3( 1, -1, -1),  
+        glm::vec3( 1,  1, -1),  
+        glm::vec3(-1,  1, -1),  
+    };
+    std::vector<glm::vec2> texs = {
+        glm::vec2(0, 0),
+        glm::vec2(1, 0),
+        glm::vec2(1, 1),
+        glm::vec2(0, 1),
+    };
+
+    std::vector<uint32_t> indices = {
+       0,1,2, 2,3,0 
+    };
+
+    MeshBuffer buffer;
+    buffer.setVerts(4, (const float*)&positions.data()[0]);
+    buffer.setTexCoords(0, 4, (const float*)&texs.data()[0]);
+    buffer.setIndices(6, indices.data());
+    Quad.init(buffer);
+
+    std::map<unsigned int, std::string> shaders;
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "quad.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "displayThickness.frag";
+    DisplayFustrumVolume.init(shaders);
 }
 
 void init(int argc, char* argv[]){
@@ -273,6 +340,11 @@ void init(int argc, char* argv[]){
     initArt();
     initFustrum();
     initView();
+
+    createTextures();
+    createFrambuffer();
+
+    initQuad();
 }
 
 void update(){
@@ -282,47 +354,97 @@ void update(){
     ProjectionView = Projection * Camera;
 }
 
-void renderFustrumDiffuse(){
-    glDisable(GL_BLEND);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+void defaultRenderState() {
+    glEnable(GL_BLEND);
+    glBlendEquation(GL_FUNC_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+}
+
+void renderFustrumDiffuse(){
     FustrumShader.bind();
     FustrumShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+    auto color = glm::vec4(1,0,1,1);
+    FustrumShader.setVec4((const float*)&color, "Color");
     FustrumModel.render();
 }
 
 void renderArtModelDiffuse(){
-    glDisable(GL_BLEND);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-
     ArtShader.bind();
     ArtShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+    auto color = glm::vec4(1,1,0,1);
+    ArtShader.setVec4((const float*)&color, "Color");
     ArtModel.render();
 }
 
 void renderVenousModelDiffuse(){
-    glDisable(GL_BLEND);
-    glDisable(GL_CULL_FACE);
-    glDisable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
-
     VenousShader.bind();
     VenousShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+    auto color = glm::vec4(1,0,0,1);
+    VenousShader.setVec4((const float*)&color, "Color");
     VenousModel.render();
 }
 
+void renderFustrumToFrameBuffer() {
+    glBindFramebuffer(GL_FRAMEBUFFER, FustrumFramebuffer);
+    glClearColor( 0, 0, 0, 0 );
+    glClear( GL_COLOR_BUFFER_BIT );
+    
+    glBlendFunc(GL_ONE, GL_ONE);
+    
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    
+    glDisable(GL_CULL_FACE);
+
+    CreateDepthVolume.bind();
+    CreateDepthVolume.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+    FustrumModel.render();
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // restore normal blending state
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+}
+
+void renderFustrumThickness() {
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+
+    DisplayFustrumVolume.bind();
+    Quad.render();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+}
+
 void render(){
+    defaultRenderState();
+    renderFustrumToFrameBuffer();
+
+    defaultRenderState();
     glClearColor( 0,0,0,0 );
     glClearDepth( 1 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
+    renderFustrumThickness();
     renderVenousModelDiffuse();
     renderArtModelDiffuse();
-    renderFustrumDiffuse();
+    // renderFustrumDiffuse();
 }
 
 void runloop(){
@@ -336,8 +458,18 @@ void runloop(){
 }
 
 void shutdown(){
+
+    Quad.shutdown();
+    DisplayFustrumVolume.shutdown();
+
+    glDeleteFramebuffers(1, &FustrumFramebuffer);
+
+    glDeleteTextures(1, &FustrumVolume);
+    glDeleteTextures(1, &CavityVolume);
+
     FustrumModel.shutdown();
     FustrumShader.shutdown();
+    CreateDepthVolume.shutdown();
 
     ArtModel.shutdown();
     ArtShader.shutdown();
