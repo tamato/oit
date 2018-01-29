@@ -102,7 +102,7 @@ void cursorCallback(GLFWwindow* window, double x, double y)
         glm::vec2 diff = curr - PrevMousePos;
         PrevMousePos = curr;
 
-        glm::vec3 rotation_axis = glm::vec3(diff.y, -diff.x, 0.f);
+        glm::vec3 rotation_axis = glm::vec3(-diff.y, -diff.x, 0.f);
         float mag = glm::length(rotation_axis);
         if (mag == 0) return;
 
