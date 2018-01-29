@@ -471,7 +471,7 @@ void renderCavitiesToImages() {
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
 }
 
-void debugCavityImage() {
+void debugCounterImage() {
     const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
     uint32_t *pixels = new uint32_t[count];
 	glBindTexture(GL_TEXTURE_2D, CounterTexture);
@@ -495,12 +495,38 @@ void clearImages() {
     Quad.render();
 }
 
+void debugCavityImage(glm::vec2 texel) {
+    const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
+    uint32_t index = uint32_t(texel.y * WINDOW_WIDTH + texel.x);
+
+    uint32_t *layers = new uint32_t[count];
+    glBindTexture(GL_TEXTURE_2D, CounterTexture);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, (GLvoid*)&layers[0]);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    uint32_t layers_written = layers[index];
+	cout << "Layers: " << layers_written << endl;
+
+    float *pixels = new float[count * 16];
+    glBindTexture(GL_TEXTURE_2D_ARRAY, CavityVolume);
+    glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RED, GL_FLOAT, (GLvoid*)&pixels[0]);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+	uint32_t index3d = uint32_t(texel.y * WINDOW_WIDTH + texel.x);
+	cout << "Texel " << glm::to_string(texel) << " value " << pixels[index3d] << endl;
+    delete [] pixels;
+}
+
 void sortDepths() {
+    cout << "Before values " << endl;
+    glm::vec2 target(512);
+    debugCavityImage(target);
     SortDepthsShader.bind();
     SortDepthsShader.setInt(1, "CavityVolume");
     SortDepthsShader.setInt(2, "Counter");
     Quad.render();
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+    cout << "After values " << endl;
+    debugCavityImage(target);
 }
 
 void render(){
@@ -521,7 +547,7 @@ void render(){
     renderArtModelDiffuse();
     renderFustrumDiffuse();
 
-    debugCavityImage();
+    //debugCounterImage();
 }
 
 void runloop(){
