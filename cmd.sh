@@ -1,24 +1,34 @@
 #!/bin/bash
 
 build_dir=~/programming/oit_build
+out_data=$build_dir/data
+target=$build_dir/oit
+local_target=./oit
+
 
 if [[ $1 = "rebuild" ]]; then
     cd $build_dir
     rm -rf ./* && cmake ../oit && make && ./oit
 fi
 
-if [[ $1 = "shaders" ]]; then
-    cp $(find ~/programming/oit/data -iname "*.vert") $build_dir/data/ 
-    cp $(find ~/programming/oit/data -iname "*.frag") $build_dir/data/ 
-fi
-
 if [[ $1 = "make" ]]; then
+    cp $(find ~/programming/oit/data -iname "*.vert") $out_data
+    cp $(find ~/programming/oit/data -iname "*.frag") $out_data
+
     cd $build_dir
-    make && ./oit
+    make && $local_target
 fi
 
 if [[ $1 = "run" ]]; then
+    cp $(find ~/programming/oit/data -iname "*.vert") $out_data
+    cp $(find ~/programming/oit/data -iname "*.frag") $out_data
+
     cd $build_dir
-    ./oit
+    $local_target
+fi
+
+if [[ $1 = "debug" ]]; then
+    cd $build_dir
+    gdb $local_target
 fi
 

@@ -50,10 +50,15 @@ ProgramObject FustrumShader;
 ProgramObject CreateDepthVolume;
 GLuint FustrumVolume = 0;
 GLuint CavityVolume = 0;
+GLuint CounterTexture = 0;
 GLuint FustrumFramebuffer = 0;
 
 MeshObject Quad;
 ProgramObject DisplayFustrumVolume;
+
+ProgramObject CollectDepthsShader;
+ProgramObject SortDepthsShader;
+ProgramObject ClearImagesShader;
 
 void errorCallback(int error, const char* description)
 {
@@ -257,6 +262,20 @@ void initVenous(){
     VenousShader.init(shaders);
 }
 
+void initCollectDepths() {
+    std::map<unsigned int, std::string> shaders;
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "collectDepths.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "collectDepths.frag";
+    CollectDepthsShader.init(shaders);
+}
+
+void initSortDepths() {
+    // std::map<unsigned int, std::string> shaders;
+    // shaders[GL_VERTEX_SHADER] = DataDirectory + "collectDepths.vert";
+    // shaders[GL_FRAGMENT_SHADER] = DataDirectory + "collectDepths.frag";
+    // SortDepthsShader.init(shaders);
+}
+
 void initView(){
     float fovy = glm::radians(30.f);
     Projection = glm::perspective<float>(fovy, WINDOW_WIDTH/(float)WINDOW_HEIGHT, 0.1f, 1000.0f );
@@ -287,8 +306,19 @@ void createTextures() {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 32); 
+    //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 32);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 32);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+    glGenTextures(1, &CounterTexture);
+    glBindTexture(GL_TEXTURE_2D, CounterTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R16F);
+    glBindImageTexture(2, CounterTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 }
 
 void createFrambuffer() {
@@ -329,6 +359,13 @@ void initQuad() {
     DisplayFustrumVolume.init(shaders);
 }
 
+void initClearImagesShader() {
+    std::map<unsigned int, std::string> shaders;
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "quad.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "clearImages.frag";
+    ClearImagesShader.init(shaders);
+}
+
 void init(int argc, char* argv[]){
     setDataDir(argc, argv);
     initGLFW();
@@ -345,6 +382,9 @@ void init(int argc, char* argv[]){
     createFrambuffer();
 
     initQuad();
+    initClearImagesShader();
+    initCollectDepths();
+    initSortDepths();
 }
 
 void update(){
@@ -432,6 +472,40 @@ void renderFustrumThickness() {
     glEnable(GL_DEPTH_TEST);
 }
 
+void renderCavitiesToImages() {
+    CollectDepthsShader.bind();
+    CollectDepthsShader.setInt(1, "CavityVolume");
+    CollectDepthsShader.setInt(2, "Counter");
+    CollectDepthsShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+
+    VenousModel.render();
+    ArtModel.render();
+
+    // glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+}
+
+void debugCavityImage() {
+    const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
+    uint32_t *pixels = new uint32_t[count];
+    glGetTextureImage(CounterTexture, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, count * sizeof(uint32_t), (GLvoid*)&pixels[0]);
+
+    uint32_t min = 99999, max=0;
+    for (uint32_t i=0; i<count; ++i){
+        min = std::min(min, pixels[i]);
+        max = std::max(max, pixels[i]);
+    }
+    delete [] pixels;
+
+    cout << "Min count: " << min << " Max: " << max << endl;
+}
+
+void clearImages() {
+    ClearImagesShader.bind();
+    ClearImagesShader.setInt(1, "CavityVolume");
+    ClearImagesShader.setInt(2, "Counter");
+    Quad.render();
+}
+
 void render(){
     defaultRenderState();
     renderFustrumToFrameBuffer();
@@ -441,10 +515,15 @@ void render(){
     glClearDepth( 1 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
+    clearImages();
+    renderCavitiesToImages();
+
     renderFustrumThickness();
     renderVenousModelDiffuse();
     renderArtModelDiffuse();
-    // renderFustrumDiffuse();
+    renderFustrumDiffuse();
+
+    debugCavityImage();
 }
 
 void runloop(){
@@ -458,6 +537,11 @@ void runloop(){
 }
 
 void shutdown(){
+
+    ClearImagesShader.shutdown();
+
+    CollectDepthsShader.shutdown();
+    SortDepthsShader.shutdown();
 
     Quad.shutdown();
     DisplayFustrumVolume.shutdown();

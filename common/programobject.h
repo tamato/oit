@@ -19,6 +19,7 @@ namespace ogle
 
         void bindAttribLoc(unsigned int index, const char * variable);
         // void setTexture(unsigned int textureHandle, const char * name); Set textures with glActiveTexture & glBind
+        void setInt(int val, const char * name);
         void setFloat(float val, const char * name);
         void setVec4(const float * vec, const char * name);
         void setVec2(const float * vec, const char * name);

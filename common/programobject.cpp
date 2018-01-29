@@ -51,6 +51,11 @@ void ProgramObject::bindAttribLoc(GLuint index, const char * variable)
     glBindAttribLocation(ProgramName, index, variable);
 }
 
+void ProgramObject::setInt(int val, const char * name)
+{
+    glProgramUniform1i(ProgramName, Uniforms[name], val);
+}
+
 void ProgramObject::setFloat(float val, const char * name)
 {
     glUniform1f(Uniforms[name], val);
