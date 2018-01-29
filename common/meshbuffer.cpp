@@ -36,9 +36,9 @@ MeshBuffer& MeshBuffer::operator=(const MeshBuffer & ref)
     if (this == &ref) return *this;
     cleanUp();
 
-    setVerts(ref.VertCnt, (float*)&ref.Verts[0]);
-    setNorms(ref.VertCnt, (float*)&ref.Norms[0]);
-    setTexCoords(0, ref.VertCnt, (float*)&ref.TexCoords[0]);
+	setVerts(ref.VertCnt, (float*)ref.Verts.data());
+	setNorms(ref.VertCnt, (float*)ref.Norms.data());
+	setTexCoords(0, ref.VertCnt, (float*)ref.TexCoords.data());
 
     for (size_t i=0; i<5; ++i)
         if (ref.UsesGenerics[i])

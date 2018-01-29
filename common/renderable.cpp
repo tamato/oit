@@ -96,9 +96,11 @@ void Renderable::shutdown()
 {
     if (CleanedUp)
         return;
-
+	
+	glBindVertexArray(VAO);
     for (const auto& earray : EnabledArrays)
         glDisableVertexAttribArray(earray);
+	glBindVertexArray(0);
 
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &IBO);

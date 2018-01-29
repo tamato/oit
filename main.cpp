@@ -4,19 +4,20 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
+
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/random.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include "glm/gtx/rotate_vector.hpp"
+
 #include "common/debug.h"
 #include "common/programobject.h"
 #include "common/objloader.h"
 #include "common/meshbuffer.h"
 #include "common/meshobject.h"
 #include "common/renderable.h"
-
-#include <pnglite.h>
 
 using namespace std;
 using namespace ogle;
@@ -76,22 +77,6 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     }
 
     if (key == GLFW_KEY_P && action == GLFW_RELEASE){
-        png_t out_img = {0};
-
-        int error = 0;
-        error = png_open_file_write(&out_img, "screen_shot.png");
-
-        int width = WINDOW_WIDTH;
-        int height = WINDOW_HEIGHT;
-        int comp_count = 4;
-        int bytes_per = 1;
-        unsigned char* data = new unsigned char[width * height * comp_count * bytes_per];
-        glReadPixels(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-        int bits_per_pixel = 8;
-        error = png_set_data(&out_img, width, height, bits_per_pixel, PNG_TRUECOLOR_ALPHA, data);
-        error = png_close_file(&out_img);
-        delete [] data; data = 0;
     }
 }
 
@@ -163,7 +148,7 @@ void initGLFW(){
     }
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
@@ -200,7 +185,7 @@ void initGLAD(){
 
 void setDataDir(int argc, char *argv[]){
     // get base directory for reading in files
-    DataDirectory = "./data/";
+	DataDirectory = "../oit/data/";
 }
 
 void initFustrum(){
@@ -270,10 +255,10 @@ void initCollectDepths() {
 }
 
 void initSortDepths() {
-    // std::map<unsigned int, std::string> shaders;
-    // shaders[GL_VERTEX_SHADER] = DataDirectory + "collectDepths.vert";
-    // shaders[GL_FRAGMENT_SHADER] = DataDirectory + "collectDepths.frag";
-    // SortDepthsShader.init(shaders);
+    std::map<unsigned int, std::string> shaders;
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "quad.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "sortDepth.frag";
+    SortDepthsShader.init(shaders);
 }
 
 void initView(){
@@ -306,8 +291,8 @@ void createTextures() {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 32);
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 32);
+    //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 16);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 16);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glGenTextures(1, &CounterTexture);
@@ -371,7 +356,6 @@ void init(int argc, char* argv[]){
     initGLFW();
     initGLAD();
     ogle::Debug::init();
-    png_init(0,0);
 
     initVenous();
     initArt();
@@ -392,6 +376,9 @@ void update(){
     glfwSetTime(0);
 
     ProjectionView = Projection * Camera;
+
+    string title = "OIT - FPS (" + std::to_string(deltaTime) + ")";
+    glfwSetWindowTitle(glfwWindow, title.c_str());
 }
 
 void defaultRenderState() {
@@ -481,13 +468,15 @@ void renderCavitiesToImages() {
     VenousModel.render();
     ArtModel.render();
 
-    // glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
 }
 
 void debugCavityImage() {
     const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
     uint32_t *pixels = new uint32_t[count];
-    glGetTextureImage(CounterTexture, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, count * sizeof(uint32_t), (GLvoid*)&pixels[0]);
+	glBindTexture(GL_TEXTURE_2D, CounterTexture);
+	glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, (GLvoid*)&pixels[0]);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
     uint32_t min = 99999, max=0;
     for (uint32_t i=0; i<count; ++i){
@@ -506,6 +495,14 @@ void clearImages() {
     Quad.render();
 }
 
+void sortDepths() {
+    SortDepthsShader.bind();
+    SortDepthsShader.setInt(1, "CavityVolume");
+    SortDepthsShader.setInt(2, "Counter");
+    Quad.render();
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+}
+
 void render(){
     defaultRenderState();
     renderFustrumToFrameBuffer();
@@ -517,6 +514,7 @@ void render(){
 
     clearImages();
     renderCavitiesToImages();
+    sortDepths();
 
     renderFustrumThickness();
     renderVenousModelDiffuse();

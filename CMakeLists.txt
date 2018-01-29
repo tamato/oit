@@ -41,12 +41,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/glfw/include)
 # Add GLM
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/glm)
 
-###########################################
-# Add pnglite
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/pnglite)
-set(PNGLITE_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/external/pnglite/pnglite.c)
-# CMAKE_REQUIRED_LIBRARIES("z") # pnglite requires libz
-
 ################################################################################
 # The core project files
 file (GLOB SRCS *.cpp )
@@ -57,10 +51,9 @@ add_executable(
   ${SRCS} 
   ${COMMON_SOURCE} 
   ${GLAD_SOURCE}
-  ${PNGLITE_SOURCE}
   )
 
-target_link_libraries( ${PROJECT_NAME} glfw z)
+target_link_libraries( ${PROJECT_NAME} glfw)
 
 add_custom_target(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:${PROJECT_NAME}>/data)

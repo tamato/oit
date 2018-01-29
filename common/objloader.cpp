@@ -145,7 +145,7 @@ void ObjLoader::load(const std::string& filename)
                 if (!nindices.empty())
                     tri.norm = nindices[0];
                 if (!tindices.empty())
-                    tri.norm = tindices[0];
+                    tri.coord = tindices[0];
 
                 if (uniqueverts.count(tri) == 0)
                     uniqueverts[tri] = vert_count++;
@@ -155,7 +155,7 @@ void ObjLoader::load(const std::string& filename)
                 if (!nindices.empty())
                     tri.norm = nindices[i];
                 if (!tindices.empty())
-                    tri.norm = tindices[i];
+					tri.coord = tindices[i];
 
                 if (uniqueverts.count(tri) == 0)
                     uniqueverts[tri] = vert_count++;
@@ -165,7 +165,7 @@ void ObjLoader::load(const std::string& filename)
                 if (!nindices.empty())
                     tri.norm = nindices[i+1];
                 if (!tindices.empty())
-                    tri.norm = tindices[i+1];
+					tri.coord = tindices[i + 1];
 
                 if (uniqueverts.count(tri) == 0)
                     uniqueverts[tri] = vert_count++;

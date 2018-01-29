@@ -32,6 +32,7 @@ void debugOutput(
     if (GL_DEBUG_SEVERITY_NOTIFICATION == severity) // ignore messages that are not actual errors.
         return;
 
+
     cout << "OGL Debugger Error: \n"
          << "\tSource: "    << Debug::sourceError(source) << "\n"
          << "\tType: "      << Debug::typeError(type) << "\n"
@@ -39,6 +40,10 @@ void debugOutput(
          << "\tSeverity: "  << Debug::severityError(severity) << "\n"
          << "\tMessage: "   << message
          << endl;
+
+	if (2 == id) // shader recompilation issues, don't need to terminate off of these.
+		return;
+
     exit(1);
 }
 

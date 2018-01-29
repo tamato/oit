@@ -94,8 +94,10 @@ void MeshObject::shutdown()
     if (CleanedUp)
         return;
 
+	glBindVertexArray(VAO);
     for (GLuint i=0; i<EnabledArrays; ++i)
         glDisableVertexAttribArray(i);
+	glBindVertexArray(0);
 
     glDeleteBuffers(1, &VBO);
     glDeleteBuffers(1, &IBO);
@@ -135,9 +137,9 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
         Stride += UVComponentCount;
     }
 
-    const float* pos = (float*)&Mesh.getVerts()[0];
-    const float* norm = (float*)&Mesh.getNorms()[0];
-    const float* uv = (float*)&Mesh.getTexCoords(0)[0];
+    const float* pos = (float*)Mesh.getVerts().data();
+    const float* norm = (float*)Mesh.getNorms().data();
+    const float* uv = (float*)Mesh.getTexCoords(0).data();
     float* vertArray = new float[VertCnt*Stride];
 
     for (int i=0, idx=0, uvidx=0; i<VertCnt; i++, idx+=3, uvidx+=2)

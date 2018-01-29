@@ -1,7 +1,7 @@
 #version 430
 
-layout(rg16f, location=1) coherent uniform image2DArray CavityVolume;
-layout(r32ui, location=2) coherent uniform uimage2D Counter;
+layout(rg16f) coherent uniform image2DArray CavityVolume;
+layout(r32ui) coherent uniform uimage2D Counter;
 
 void main() {
     ivec2 loc = ivec2(gl_FragCoord.xy);
