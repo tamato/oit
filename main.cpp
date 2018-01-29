@@ -302,7 +302,7 @@ void createTextures() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_WRITE_ONLY, GL_R16F);
+	glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R16F);
     glBindImageTexture(2, CounterTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 }
 
