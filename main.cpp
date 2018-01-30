@@ -24,6 +24,10 @@ using namespace ogle;
 std::string DataDirectory; // ends with a forward slash
 int WINDOW_WIDTH = 1024;
 int WINDOW_HEIGHT = 1024;
+
+int RENDER_WIDTH = 1024;
+int RENDER_HEIGHT = 1024;
+
 GLFWwindow* glfwWindow;
 
 glm::mat4x4 Camera;
@@ -57,6 +61,8 @@ GLuint FustrumVolume = 0;
 GLuint CavityVolume = 0;
 GLuint CounterTexture = 0;
 GLuint FustrumFramebuffer = 0;
+GLuint RenderFramebuffer = 0;
+GLuint RenderSurface = 0;
 
 GLuint ValvesCounterTexture = 0;
 GLuint ValvesVolume = 0;
@@ -70,6 +76,8 @@ ProgramObject ClearImagesShader;
 
 ProgramObject FustrumClipShader;	// the fustrum clips against the rest of the anatomy
 ProgramObject CavityClipShader;		// interior models clip against the fustrum
+
+ProgramObject WindowBlit;
 
 const glm::vec4 ColorGradient0(255/255.f, 180/255.f, 50/255.f, 1.f);
 const glm::vec4 ColorGradient1(50/255.f, 180/255.f, 255/255.f, 1.f);
@@ -206,7 +214,6 @@ void setDataDir(int argc, char *argv[]){
 void initFustrum(){
     // load up mesh
     ogle::ObjLoader loader;
-    // loader.load(DataDirectory + "large_simple_fustrum.obj");
     loader.load(DataDirectory + "fustrum.obj");
 
     MeshBuffer buffer;
@@ -291,7 +298,7 @@ void initClipAgainstFustrum() {
 
 void initView(){
     float fovy = glm::radians(30.f);
-    Projection = glm::perspective<float>(fovy, WINDOW_WIDTH/(float)WINDOW_HEIGHT, 0.1f, 1000.0f );
+    Projection = glm::perspective<float>(fovy, RENDER_WIDTH/(float)RENDER_HEIGHT, 0.1f, 1000.0f );
 
     float opposite = (VenousModel.AABBMax.y - VenousModel.AABBMin.y);
     float adjacent = opposite / atan(fovy * .5f);
@@ -304,45 +311,54 @@ void initView(){
 }
 
 void createTextures() {
-    glGenTextures(1, &FustrumVolume);
-    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+    glGenTextures(1, &RenderSurface);
+    glBindTexture(GL_TEXTURE_2D, RenderSurface);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RG, GL_FLOAT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, RENDER_WIDTH, RENDER_HEIGHT, 0, GL_RGBA, GL_FLOAT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenTextures(1, &FustrumVolume);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32F, RENDER_WIDTH, RENDER_HEIGHT, 0, GL_RG, GL_FLOAT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     glGenTextures(1, &CavityVolume);
     glBindTexture(GL_TEXTURE_2D_ARRAY, CavityVolume);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, RENDER_WIDTH, RENDER_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glGenTextures(1, &CounterTexture);
     glBindTexture(GL_TEXTURE_2D, CounterTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, RENDER_WIDTH, RENDER_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     glGenTextures(1, &ValvesCounterTexture);
     glBindTexture(GL_TEXTURE_2D, ValvesCounterTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, RENDER_WIDTH, RENDER_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     glGenTextures(1, &ValvesVolume);
     glBindTexture(GL_TEXTURE_2D_ARRAY, ValvesVolume);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, RENDER_WIDTH, RENDER_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
@@ -356,6 +372,11 @@ void createFrambuffer() {
     glGenFramebuffers(1, &FustrumFramebuffer);
     glBindFramebuffer(GL_FRAMEBUFFER, FustrumFramebuffer);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, FustrumVolume, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    glGenFramebuffers(1, &RenderFramebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderFramebuffer);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, RenderSurface, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
@@ -408,11 +429,13 @@ void initValvesModel() {
     buffer.setIndices(loader.getIndexCount(), loader.getIndices());
     buffer.generateFaceNormals();
     ValvesModel.init(buffer);
+}
 
-    // std::map<unsigned int, std::string> shaders;
-    // shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuse.vert";
-    // shaders[GL_FRAGMENT_SHADER] = DataDirectory + "diffuse.frag";
-    // FustrumShader.init(shaders);
+void initWindowBlit() {
+    std::map<unsigned int, std::string> shaders;
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "quad.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "blit.frag";
+    WindowBlit.init(shaders);
 }
 
 void init(int argc, char* argv[]){
@@ -435,6 +458,8 @@ void init(int argc, char* argv[]){
     initSortDepths();
     initClipAgainstFustrum();
     initValvesModel();
+
+    initWindowBlit();
 }
 
 void update(){
@@ -561,7 +586,7 @@ void renderValvesToImages() {
 }
 
 void debugImages() {
-    const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
+    const uint32_t count = RENDER_WIDTH * RENDER_HEIGHT;
     uint32_t *pixels = new uint32_t[count];
 	glBindTexture(GL_TEXTURE_2D, CounterTexture);
 	glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, (GLvoid*)&pixels[0]);
@@ -656,7 +681,7 @@ void renderAndClipCavities() {
     CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
     CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
     CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
-    CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "Resolution");
+    CavityClipShader.setVec2((const float*)&glm::vec2(RENDER_WIDTH, RENDER_HEIGHT), "Resolution");
     VenousModel.render();
     ArtModel.render();
 
@@ -674,7 +699,7 @@ void renderAndClipValves() {
     CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
     CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
     CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
-    CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "Resolution");
+    CavityClipShader.setVec2((const float*)&glm::vec2(RENDER_WIDTH, RENDER_HEIGHT), "Resolution");
     ValvesModel.render();
 
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -688,11 +713,22 @@ void renderValvesDiffuse() {
     ValvesModel.render();
 }
 
+void renderToScreen() {
+    glDisable(GL_BLEND);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, RenderSurface);
+    WindowBlit.bind();
+    Quad.render();
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glEnable(GL_BLEND);
+}
+
 void render(){
     defaultRenderState();
     renderFustrumToFrameBuffer();
 
     defaultRenderState();
+    glBindFramebuffer(GL_FRAMEBUFFER, RenderFramebuffer);
     glClearColor( 0,0,0,0 );
     glClearDepth( 1 );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
@@ -713,6 +749,11 @@ void render(){
     // renderArtModelDiffuse();
     // renderFustrumDiffuse();
     // renderValvesDiffuse();
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClearColor( 0,0,0,0 );
+    glClearDepth( 1 );
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+    renderToScreen();
 }
 
 void runloop(){
@@ -726,6 +767,7 @@ void runloop(){
 }
 
 void shutdown(){
+    WindowBlit.shutdown();
     FustrumClipShader.shutdown();
     CavityClipShader.shutdown();
 
@@ -740,7 +782,10 @@ void shutdown(){
     Quad.shutdown();
     DisplayFustrumVolume.shutdown();
 
+    glDeleteTextures(1, &RenderSurface);
+
     glDeleteFramebuffers(1, &FustrumFramebuffer);
+    glDeleteFramebuffers(1, &RenderFramebuffer);
 
     glDeleteTextures(1, &FustrumVolume);
     glDeleteTextures(1, &CavityVolume);
@@ -754,6 +799,7 @@ void shutdown(){
 
     VenousShader.shutdown();
     VenousModel.shutdown();
+
 
     ogle::Debug::shutdown();
     glfwDestroyWindow(glfwWindow);
