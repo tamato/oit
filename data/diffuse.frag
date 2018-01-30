@@ -9,4 +9,5 @@ layout(location = 0) out vec4 FragColor;
 void main() {
     float falloff = dot(vec3(0,0,1), abs(Normal));
     FragColor = Color * falloff;
+    FragColor.a = 1;
 }

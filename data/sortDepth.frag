@@ -5,7 +5,7 @@ layout(r32ui) coherent uniform uimage2D Counter;
 
 #define ABUFFER_SIZE 16
 vec4 depthsList[ABUFFER_SIZE];
-void fillFragmentArray(ivec2 coords, uint max_layers);
+void fillDepthsArray(ivec2 coords, uint max_layers);
 void saveSortedValues(ivec2 coords, uint max_layers);
 
 //Bitonic sort test, http://www.tools-of-computing.com/tc/CS/Sorts/bitonic_sort.htm
@@ -17,7 +17,7 @@ void main() {
     uint max_layers = imageLoad(Counter, loc).r;
 
     // collect depth values
-    fillFragmentArray(loc, max_layers);
+    fillDepthsArray(loc, max_layers);
 
     // sort them
     bubbleSort( int(max_layers) );
@@ -27,7 +27,7 @@ void main() {
     discard;
 }
 
-void fillFragmentArray(ivec2 coords, uint max_layers){
+void fillDepthsArray(ivec2 coords, uint max_layers){
     //Load fragments into a local memory array for sorting
     for(uint i=0; i<max_layers; i++){
         depthsList[i]=imageLoad(CavityVolume, ivec3(coords, i));

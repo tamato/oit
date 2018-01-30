@@ -8,7 +8,6 @@
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtc/random.hpp"
 #include "glm/gtx/string_cast.hpp"
 #include "glm/gtx/rotate_vector.hpp"
 
@@ -62,6 +61,9 @@ ProgramObject DisplayFustrumVolume;
 ProgramObject CollectDepthsShader;
 ProgramObject SortDepthsShader;
 ProgramObject ClearImagesShader;
+
+ProgramObject FustrumClipShader;	// the fustrum clips against the rest of the anatomy
+ProgramObject CavityClipShader;		// interior models clip against the fustrum
 
 void errorCallback(int error, const char* description)
 {
@@ -193,6 +195,7 @@ void setDataDir(int argc, char *argv[]){
 void initFustrum(){
     // load up mesh
     ogle::ObjLoader loader;
+    // loader.load(DataDirectory + "large_simple_fustrum.obj");
     loader.load(DataDirectory + "fustrum.obj");
 
     MeshBuffer buffer;
@@ -211,6 +214,11 @@ void initFustrum(){
     shaders[GL_VERTEX_SHADER] = DataDirectory + "depth.vert";
     shaders[GL_FRAGMENT_SHADER] = DataDirectory + "thickness.frag";
     CreateDepthVolume.init(shaders);
+
+	shaders.clear();
+	shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuseClip.vert";
+	shaders[GL_FRAGMENT_SHADER] = DataDirectory + "diffuseClipAgainstCavities.frag";
+	FustrumClipShader.init(shaders);
 }
 
 void initArt(){
@@ -261,6 +269,13 @@ void initSortDepths() {
     shaders[GL_VERTEX_SHADER] = DataDirectory + "quad.vert";
     shaders[GL_FRAGMENT_SHADER] = DataDirectory + "sortDepth.frag";
     SortDepthsShader.init(shaders);
+}
+
+void initClipAgainstFustrum() {
+    std::map<unsigned int, std::string> shaders;
+    shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuseClip.vert";
+    shaders[GL_FRAGMENT_SHADER] = DataDirectory + "diffuseClipAgainstFustrum.frag";
+    CavityClipShader.init(shaders);
 }
 
 void initView(){
@@ -371,16 +386,36 @@ void init(int argc, char* argv[]){
     initClearImagesShader();
     initCollectDepths();
     initSortDepths();
+    initClipAgainstFustrum();
 }
 
 void update(){
-    float deltaTime = (float)glfwGetTime(); // get's the amount of time since last setTime
-    glfwSetTime(0);
-
     ProjectionView = Projection * Camera;
 
-    string title = "OIT - FPS (" + std::to_string(deltaTime) + ")";
-    glfwSetWindowTitle(glfwWindow, title.c_str());
+    static std::vector<float> deltas;
+    static float sum_deltas = 0;
+
+    float deltaTime = (float)glfwGetTime(); // get's the amount of time since last setTime
+    deltas.push_back(deltaTime);
+    sum_deltas += deltaTime;
+
+    glfwSetTime(0);
+
+    if (sum_deltas > .5f) {
+        sum_deltas = 0;
+
+        float ave = 0;
+        for (auto& d: deltas){
+            ave += d;
+        }
+        ave /= deltas.size();
+        deltas.clear();
+
+    	int fps = int(1 / ave);
+    	float milliseconds = ave * 1000.f;
+    	string title = "OIT - FPS (" + std::to_string(fps) + ") / " + std::to_string(milliseconds) + "ms";
+        glfwSetWindowTitle(glfwWindow, title.c_str());
+    }
 }
 
 void defaultRenderState() {
@@ -437,28 +472,6 @@ void renderFustrumToFrameBuffer() {
     FustrumModel.render();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    // restore normal blending state
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_TRUE);
-    glEnable(GL_CULL_FACE);
-}
-
-void renderFustrumThickness() {
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
-
-    DisplayFustrumVolume.bind();
-    Quad.render();
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glDepthMask(GL_TRUE);
-    glEnable(GL_DEPTH_TEST);
 }
 
 void renderCavitiesToImages() {    
@@ -525,6 +538,51 @@ void sortDepths() {
     Quad.render();    
 }
 
+void renderAndClipFustrum() {
+    auto color = glm::vec4(1,0,1,1);
+
+    FustrumClipShader.bind();
+    FustrumClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+
+    FustrumClipShader.setVec4((const float*)&color, "Color");
+    FustrumClipShader.setInt(1, "CavityVolume");
+    FustrumClipShader.setInt(2, "Counter");
+    
+
+    FustrumModel.render();
+}
+
+void renderFustrumThickness() {
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+
+    DisplayFustrumVolume.bind();
+    Quad.render();
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void renderAndClipCavities() {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+
+    CavityClipShader.bind();
+    CavityClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+
+    auto color = glm::vec4(1,0,1,1);
+    CavityClipShader.setVec4((const float*)&color, "Color");
+    CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "WindowSize");
+    VenousModel.render();
+    ArtModel.render();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void render(){
     defaultRenderState();
     renderFustrumToFrameBuffer();
@@ -537,12 +595,15 @@ void render(){
     clearImages();
     renderCavitiesToImages();
     sortDepths();
-    debugImages();
+    // debugImages();
 
-    renderFustrumThickness();
-    renderVenousModelDiffuse();
-    renderArtModelDiffuse();
-    renderFustrumDiffuse();
+    // renderFustrumThickness();
+    renderAndClipCavities();
+    renderAndClipFustrum();
+
+    // renderVenousModelDiffuse();
+    // renderArtModelDiffuse();
+    // renderFustrumDiffuse();
 }
 
 void runloop(){
