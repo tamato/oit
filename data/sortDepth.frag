@@ -4,13 +4,13 @@ layout(rg16f) coherent uniform image2DArray CavityVolume;
 layout(r32ui) coherent uniform uimage2D Counter;
 
 #define ABUFFER_SIZE 16
-float fragmentList[ABUFFER_SIZE];
-void fillFragmentArray(ivec2 coords, uint abNumFrag);
+vec4 depthsList[ABUFFER_SIZE];
+void fillFragmentArray(ivec2 coords, uint max_layers);
 void saveSortedValues(ivec2 coords, uint max_layers);
 
 //Bitonic sort test, http://www.tools-of-computing.com/tc/CS/Sorts/bitonic_sort.htm
 void bitonicSort( int n );
-void bubbleSort(uint array_size);
+void bubbleSort(int array_size);
 
 void main() {
     ivec2 loc = ivec2(gl_FragCoord.xy);
@@ -20,46 +20,45 @@ void main() {
     fillFragmentArray(loc, max_layers);
 
     // sort them
-    bubbleSort(max_layers);
+    bubbleSort( int(max_layers) );
 
     // fill the texture right back out.
     saveSortedValues(loc, max_layers);
-    memoryBarrier();
     discard;
 }
 
-void fillFragmentArray(ivec2 coords, uint abNumFrag){
+void fillFragmentArray(ivec2 coords, uint max_layers){
     //Load fragments into a local memory array for sorting
-    for(uint i=0; i<abNumFrag; i++){
-        fragmentList[i]=imageLoad(CavityVolume, ivec3(coords, i)).r;
+    for(uint i=0; i<max_layers; i++){
+        depthsList[i]=imageLoad(CavityVolume, ivec3(coords, i));
     }
 }
 
 void saveSortedValues(ivec2 coords, uint max_layers) {
     //store depth values back into the global array
     for(uint i=0; i<max_layers; i++){
-        imageStore(CavityVolume, ivec3(coords, i), vec4(fragmentList[i]));
+        imageStore(CavityVolume, ivec3(coords, i), depthsList[i]);
     }
 }
 
 //Bubble sort used to sort fragments
-void bubbleSort(uint array_size) {
-  for (uint i = (array_size - 2); i >= 0; --i) {
-    for (uint j = 0; j <= i; ++j) {
-      if (fragmentList[j] > fragmentList[j+1]) {
-        float temp = fragmentList[j+1];
-        fragmentList[j+1] = fragmentList[j];
-        fragmentList[j] = temp;
-      }
+void bubbleSort(int array_size) {
+    for (int i = (array_size - 2); i >= 0; --i) {
+        for (int j = 0; j <= i; ++j) {
+            if (depthsList[j].x > depthsList[j+1].x) {
+                vec4 temp = depthsList[j+1];
+                depthsList[j+1] = depthsList[j];
+                depthsList[j] = temp;
+            }
+        }
     }
-  }
 }
 
 //Swap function
 void swapFragArray(int n0, int n1){
-    float temp = fragmentList[n1];
-    fragmentList[n1] = fragmentList[n0];
-    fragmentList[n0] = temp;
+    vec4 temp = depthsList[n1];
+    depthsList[n1] = depthsList[n0];
+    depthsList[n0] = temp;
 }
 
 //->Same artefact than in L.Bavoil
@@ -71,10 +70,10 @@ void bitonicSort( int n ) {
             for (i=0;i<n;i++) {
               int ixj=i^j;
               if ((ixj)>i) {
-                  if ((i&k)==0 && fragmentList[i]>fragmentList[ixj]){
+                  if ((i&k)==0 && depthsList[i].x>depthsList[ixj].x){
                     swapFragArray(i, ixj);
                   }
-                  if ((i&k)!=0 && fragmentList[i]<fragmentList[ixj]) {
+                  if ((i&k)!=0 && depthsList[i].x<depthsList[ixj].x) {
                     swapFragArray(i, ixj);
                   }
               }

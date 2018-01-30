@@ -48,6 +48,8 @@ ProgramObject ArtShader;
 MeshObject FustrumModel;
 ProgramObject FustrumShader;
 
+const int LayersCount = 16;
+
 ProgramObject CreateDepthVolume;
 GLuint FustrumVolume = 0;
 GLuint CavityVolume = 0;
@@ -291,8 +293,8 @@ void createTextures() {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    //glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 16);
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, 16);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
+    //glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glGenTextures(1, &CounterTexture);
@@ -302,7 +304,7 @@ void createTextures() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-	glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R16F);
+	glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
     glBindImageTexture(2, CounterTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 }
 
@@ -459,7 +461,11 @@ void renderFustrumThickness() {
     glEnable(GL_DEPTH_TEST);
 }
 
-void renderCavitiesToImages() {
+void renderCavitiesToImages() {    
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+
     CollectDepthsShader.bind();
     CollectDepthsShader.setInt(1, "CavityVolume");
     CollectDepthsShader.setInt(2, "Counter");
@@ -468,24 +474,41 @@ void renderCavitiesToImages() {
     VenousModel.render();
     ArtModel.render();
 
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+
 }
 
-void debugCounterImage() {
+void debugImages() {
     const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
     uint32_t *pixels = new uint32_t[count];
 	glBindTexture(GL_TEXTURE_2D, CounterTexture);
 	glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, (GLvoid*)&pixels[0]);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-    uint32_t min = 99999, max=0;
+    uint32_t loc = 0;
+    uint32_t max=0;
     for (uint32_t i=0; i<count; ++i){
-        min = std::min(min, pixels[i]);
-        max = std::max(max, pixels[i]);
+        if (pixels[i] > max){
+            max = pixels[i];
+            loc = i;
+        }
     }
     delete [] pixels;
 
-    cout << "Min count: " << min << " Max: " << max << endl;
+    glm::vec2 *depths = new glm::vec2[count * LayersCount];
+    glBindTexture(GL_TEXTURE_2D_ARRAY, CavityVolume);
+    glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RG, GL_FLOAT, (GLvoid*)&depths[0]);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+    cout << "Layers used: " << max << endl;
+    for (int layer=0; layer<max; ++layer){
+        int layered_index = (layer * count) + loc;
+        cout << "\tLayer " << layer << " val: " << glm::to_string(depths[layered_index]) << endl;
+    }
+
+    delete [] depths;
 }
 
 void clearImages() {
@@ -495,38 +518,11 @@ void clearImages() {
     Quad.render();
 }
 
-void debugCavityImage(glm::vec2 texel) {
-    const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
-    uint32_t index = uint32_t(texel.y * WINDOW_WIDTH + texel.x);
-
-    uint32_t *layers = new uint32_t[count];
-    glBindTexture(GL_TEXTURE_2D, CounterTexture);
-    glGetTexImage(GL_TEXTURE_2D, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, (GLvoid*)&layers[0]);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    uint32_t layers_written = layers[index];
-	cout << "Layers: " << layers_written << endl;
-
-    float *pixels = new float[count * 16];
-    glBindTexture(GL_TEXTURE_2D_ARRAY, CavityVolume);
-    glGetTexImage(GL_TEXTURE_2D_ARRAY, 0, GL_RED, GL_FLOAT, (GLvoid*)&pixels[0]);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
-
-	uint32_t index3d = uint32_t(texel.y * WINDOW_WIDTH + texel.x);
-	cout << "Texel " << glm::to_string(texel) << " value " << pixels[index3d] << endl;
-    delete [] pixels;
-}
-
 void sortDepths() {
-    cout << "Before values " << endl;
-    glm::vec2 target(512);
-    debugCavityImage(target);
     SortDepthsShader.bind();
     SortDepthsShader.setInt(1, "CavityVolume");
     SortDepthsShader.setInt(2, "Counter");
-    Quad.render();
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_ATOMIC_COUNTER_BARRIER_BIT);
-    cout << "After values " << endl;
-    debugCavityImage(target);
+    Quad.render();    
 }
 
 void render(){
@@ -541,13 +537,12 @@ void render(){
     clearImages();
     renderCavitiesToImages();
     sortDepths();
+    debugImages();
 
     renderFustrumThickness();
     renderVenousModelDiffuse();
     renderArtModelDiffuse();
     renderFustrumDiffuse();
-
-    //debugCounterImage();
 }
 
 void runloop(){
