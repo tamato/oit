@@ -699,15 +699,15 @@ void render(){
 
     clearImages();
     renderCavitiesToImages();
-    // renderValvesToImages();
     sortCavityDepths();
+    // renderValvesToImages();
     // sortValveDepths();
     // debugImages();
 
     // renderFustrumThickness();
     renderAndClipCavities();
     renderAndClipFustrum();
-    // renderAndClipValves();
+    renderAndClipValves();
 
     // renderVenousModelDiffuse();
     // renderArtModelDiffuse();
