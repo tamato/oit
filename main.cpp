@@ -319,7 +319,7 @@ void createTextures() {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glGenTextures(1, &CounterTexture);
@@ -329,18 +329,27 @@ void createTextures() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    // glGenTextures(1, &ValvesVolume);
-    // glBindTexture(GL_TEXTURE_2D_ARRAY, ValvesVolume);
-    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    // glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount);
-    // glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+    glGenTextures(1, &ValvesCounterTexture);
+    glBindTexture(GL_TEXTURE_2D, ValvesCounterTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glGenTextures(1, &ValvesVolume);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, ValvesVolume);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
     glBindImageTexture(2, CounterTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
-    // glBindImageTexture(3, ValvesVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
+
+    glBindImageTexture(3, ValvesVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
+    glBindImageTexture(4, ValvesCounterTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
 }
 
 void createFrambuffer() {
@@ -425,7 +434,7 @@ void init(int argc, char* argv[]){
     initCollectDepths();
     initSortDepths();
     initClipAgainstFustrum();
-    // initValvesModel();
+    initValvesModel();
 }
 
 void update(){
@@ -533,6 +542,24 @@ void renderCavitiesToImages() {
 
 }
 
+void renderValvesToImages() {    
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+
+    CollectDepthsShader.bind();
+    CollectDepthsShader.setInt(3, "CavityVolume");
+    CollectDepthsShader.setInt(4, "Counter");
+    CollectDepthsShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+
+    ValvesModel.render();
+
+    glDepthMask(GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+
+}
+
 void debugImages() {
     const uint32_t count = WINDOW_WIDTH * WINDOW_HEIGHT;
     uint32_t *pixels = new uint32_t[count];
@@ -568,19 +595,26 @@ void clearImages() {
     ClearImagesShader.bind();
     ClearImagesShader.setInt(1, "CavityVolume");
     ClearImagesShader.setInt(2, "Counter");
+    ClearImagesShader.setInt(3, "ValvesVolume");
+    ClearImagesShader.setInt(4, "ValvesCounter");
     Quad.render();
 }
 
-void sortDepths() {
+void sortCavityDepths() {
     SortDepthsShader.bind();
     SortDepthsShader.setInt(1, "CavityVolume");
     SortDepthsShader.setInt(2, "Counter");
     Quad.render();    
 }
 
-void renderAndClipFustrum() {
-    auto color = glm::vec4(1,0,1,1);
+void sortValveDepths() {
+    SortDepthsShader.bind();
+    SortDepthsShader.setInt(3, "CavityVolume");
+    SortDepthsShader.setInt(4, "Counter");
+    Quad.render();    
+}
 
+void renderAndClipFustrum() {
     FustrumClipShader.bind();
     FustrumClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
 
@@ -590,7 +624,8 @@ void renderAndClipFustrum() {
     FustrumClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
     FustrumClipShader.setInt(1, "CavityVolume");
     FustrumClipShader.setInt(2, "Counter");
-    
+    FustrumClipShader.setInt(3, "ValvesVolume");
+    FustrumClipShader.setInt(4, "ValvesCounter");
 
     FustrumModel.render();
 }
@@ -617,7 +652,6 @@ void renderAndClipCavities() {
     CavityClipShader.bind();
     CavityClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
 
-    auto color = glm::vec4(1,0,1,1);
     CavityClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
     CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
     CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
@@ -625,6 +659,23 @@ void renderAndClipCavities() {
     CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "Resolution");
     VenousModel.render();
     ArtModel.render();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void renderAndClipValves() {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+
+    CavityClipShader.bind();
+    CavityClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+
+    CavityClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
+    CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
+    CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
+    CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
+    CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "Resolution");
+    ValvesModel.render();
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -648,12 +699,15 @@ void render(){
 
     clearImages();
     renderCavitiesToImages();
-    sortDepths();
+    // renderValvesToImages();
+    sortCavityDepths();
+    // sortValveDepths();
     // debugImages();
 
     // renderFustrumThickness();
     renderAndClipCavities();
     renderAndClipFustrum();
+    // renderAndClipValves();
 
     // renderVenousModelDiffuse();
     // renderArtModelDiffuse();
