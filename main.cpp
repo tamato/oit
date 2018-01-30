@@ -30,6 +30,7 @@ glm::mat4x4 Camera;
 glm::mat4x4 SceneBase;
 glm::mat4x4 Projection;
 glm::mat4x4 ProjectionView;
+glm::mat3x3 NormalMatrix;
 
 glm::vec3 CameraTarget;
 glm::vec3 CameraPosition;
@@ -64,6 +65,11 @@ ProgramObject ClearImagesShader;
 
 ProgramObject FustrumClipShader;	// the fustrum clips against the rest of the anatomy
 ProgramObject CavityClipShader;		// interior models clip against the fustrum
+
+const glm::vec4 ColorGradient0(255/255.f, 180/255.f, 50/255.f, 1.f);
+const glm::vec4 ColorGradient1(50/255.f, 180/255.f, 255/255.f, 1.f);
+const glm::vec4 ColorMinimum(.5f, .5f, .5f, 1.f);
+const glm::vec2 ColorDepthRange(320.f, 380.f);
 
 void errorCallback(int error, const char* description)
 {
@@ -391,6 +397,7 @@ void init(int argc, char* argv[]){
 
 void update(){
     ProjectionView = Projection * Camera;
+    // NormalMatrix = glm
 
     static std::vector<float> deltas;
     static float sum_deltas = 0;
@@ -544,7 +551,10 @@ void renderAndClipFustrum() {
     FustrumClipShader.bind();
     FustrumClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
 
-    FustrumClipShader.setVec4((const float*)&color, "Color");
+    FustrumClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
+    FustrumClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
+    FustrumClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
+    FustrumClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
     FustrumClipShader.setInt(1, "CavityVolume");
     FustrumClipShader.setInt(2, "Counter");
     
@@ -575,8 +585,11 @@ void renderAndClipCavities() {
     CavityClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
 
     auto color = glm::vec4(1,0,1,1);
-    CavityClipShader.setVec4((const float*)&color, "Color");
-    CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "WindowSize");
+    CavityClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
+    CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
+    CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
+    CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
+    CavityClipShader.setVec2((const float*)&glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT), "Resolution");
     VenousModel.render();
     ArtModel.render();
 
