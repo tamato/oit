@@ -48,6 +48,8 @@ ProgramObject ArtShader;
 MeshObject FustrumModel;
 ProgramObject FustrumShader;
 
+MeshObject ValvesModel;
+
 const int LayersCount = 16;
 
 ProgramObject CreateDepthVolume;
@@ -55,6 +57,9 @@ GLuint FustrumVolume = 0;
 GLuint CavityVolume = 0;
 GLuint CounterTexture = 0;
 GLuint FustrumFramebuffer = 0;
+
+GLuint ValvesCounterTexture = 0;
+GLuint ValvesVolume = 0;
 
 MeshObject Quad;
 ProgramObject DisplayFustrumVolume;
@@ -314,8 +319,7 @@ void createTextures() {
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RG16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount, 0, GL_RG, GL_FLOAT, 0);
-    //glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount);
     glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
 
     glGenTextures(1, &CounterTexture);
@@ -325,8 +329,18 @@ void createTextures() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32UI, WINDOW_WIDTH, WINDOW_HEIGHT, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-	glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
+    // glGenTextures(1, &ValvesVolume);
+    // glBindTexture(GL_TEXTURE_2D_ARRAY, ValvesVolume);
+    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    // glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R16F, WINDOW_WIDTH, WINDOW_HEIGHT, LayersCount);
+    // glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+    glBindImageTexture(1, CavityVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
     glBindImageTexture(2, CounterTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+    // glBindImageTexture(3, ValvesVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RG16F);
 }
 
 void createFrambuffer() {
@@ -374,6 +388,24 @@ void initClearImagesShader() {
     ClearImagesShader.init(shaders);
 }
 
+void initValvesModel() {
+    // load up mesh
+    ogle::ObjLoader loader;
+    loader.load(DataDirectory + "valves.obj");
+
+    MeshBuffer buffer;
+    buffer.setVerts(loader.getVertCount(), loader.getPositions());
+    buffer.setNorms(loader.getVertCount(), loader.getNormals());
+    buffer.setIndices(loader.getIndexCount(), loader.getIndices());
+    buffer.generateFaceNormals();
+    ValvesModel.init(buffer);
+
+    // std::map<unsigned int, std::string> shaders;
+    // shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuse.vert";
+    // shaders[GL_FRAGMENT_SHADER] = DataDirectory + "diffuse.frag";
+    // FustrumShader.init(shaders);
+}
+
 void init(int argc, char* argv[]){
     setDataDir(argc, argv);
     initGLFW();
@@ -393,6 +425,7 @@ void init(int argc, char* argv[]){
     initCollectDepths();
     initSortDepths();
     initClipAgainstFustrum();
+    // initValvesModel();
 }
 
 void update(){
@@ -596,6 +629,14 @@ void renderAndClipCavities() {
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void renderValvesDiffuse() {
+    FustrumShader.bind();
+    FustrumShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+    auto color = glm::vec4(1,0,1,1);
+    FustrumShader.setVec4((const float*)&color, "Color");
+    ValvesModel.render();
+}
+
 void render(){
     defaultRenderState();
     renderFustrumToFrameBuffer();
@@ -617,6 +658,7 @@ void render(){
     // renderVenousModelDiffuse();
     // renderArtModelDiffuse();
     // renderFustrumDiffuse();
+    // renderValvesDiffuse();
 }
 
 void runloop(){
@@ -630,6 +672,11 @@ void runloop(){
 }
 
 void shutdown(){
+    FustrumClipShader.shutdown();
+    CavityClipShader.shutdown();
+
+    glDeleteTextures(1, &ValvesCounterTexture);
+    glDeleteTextures(1, &ValvesVolume);
 
     ClearImagesShader.shutdown();
 
