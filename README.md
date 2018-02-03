@@ -9,7 +9,7 @@ Then in the parent directory have a sibling project named
 Run cmake from this new directory.
 
 To get this project up and running it has been tested in Windows 10 with Visual Studio 12 2013 with the command:  
-cmake -G "Visual Studio 12 (2013)" "64" ../{project_name}  
+cmake -G "Visual Studio 12 2013" ../{project_name}  
 
 And in Ubuntu 14.10 with gcc 4.8.4 or clang 3.7.1 with the commands  
 for gcc  
@@ -21,3 +21,4 @@ for clang
 CC=clang CXX=clang++ cmake ../{project_name}  
 CC=clang CXX=clang++ cmake -G "Sublime Text 2 - Unix Makefiles" ../{project_name}  
 CC=clang CXX=clang++ cmake -G "Sublime Text 2 - Ninja" ../{project_name}  
+

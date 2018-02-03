@@ -41,8 +41,8 @@ void debugOutput(
          << "\tMessage: "   << message
          << endl;
 
-	if (2 == id) // shader recompilation issues, don't need to terminate off of these.
-		return;
+    if (2 == id) // shader recompilation issues, don't need to terminate off of these.
+	return;
 
     exit(1);
 }

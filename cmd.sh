@@ -1,6 +1,6 @@
 #!/bin/bash
 
-build_dir=~/programming/oit_build
+build_dir=~/programming/build_oit
 out_data=$build_dir/data
 target=$build_dir/oit
 local_target=./oit
@@ -8,7 +8,7 @@ local_target=./oit
 
 if [[ $1 = "rebuild" ]]; then
     cd $build_dir
-    rm -rf ./* && cmake ../oit && make && ./oit
+    rm -rf ./* && cmake -G "Sublime Text 2 - Unix Makefiles" ../oit && make && ./oit
 fi
 
 if [[ $1 = "make" ]]; then
