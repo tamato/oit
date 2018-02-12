@@ -10,6 +10,8 @@
 #include <stdint.h>
 
 #include <glad/glad.h>
+//#include "../GL/glew.h"
+//#include "../GL/wglew.h"
 
 using namespace ogle;
 

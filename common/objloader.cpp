@@ -188,11 +188,11 @@ void ObjLoader::load(const std::string& filename)
 
         Positions[iter->second] = verts[iter->first.vert];
 
-        if ( norms.size() > 0 ) {
+        if (false && norms.size() > 0) {
             Normals[iter->second] = norms[iter->first.norm];
         }
 
-        if ( texcoords.size() > 0) {
+        if (false && texcoords.size() > 0) {
             TexCoords[iter->second] = texcoords[iter->first.coord];
         }
     }

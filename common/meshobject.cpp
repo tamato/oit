@@ -2,6 +2,8 @@
 #include <iostream>
 
 #include <glad/glad.h>
+//#include "../GL/glew.h"
+//#include "../GL/wglew.h"
 
 #include "meshobject.h"
 
@@ -179,13 +181,17 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
     for (GLuint i=0; i<EnabledArrays; ++i)
         glEnableVertexAttribArray(i);
 
+    //glNamedBufferData(VBO, VertCnt * Stride, (GLvoid*)vertArray, GL_STATIC_DRAW);
+
     // set vert buffer    
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, 
+   /* glBufferData(GL_ARRAY_BUFFER,
         VertCnt * Stride,
         (GLvoid*)vertArray,
-        GL_STATIC_DRAW);
+        GL_STATIC_DRAW);*/
 
+    glBufferData(GL_ARRAY_BUFFER, VertCnt*Stride, 0, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertCnt*Stride, (const GLvoid*)vertArray);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Stride, bufferOffest(0));
 
     if (Normalidx)

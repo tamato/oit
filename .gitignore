@@ -2,6 +2,9 @@
 *.sublime-workspace
 CMakeLists.txt.user
 
+*.lib
+*.dll
+
 external/glfw
 external/glm
 external/pnglite

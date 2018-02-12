@@ -44,7 +44,8 @@ MeshBuffer& MeshBuffer::operator=(const MeshBuffer & ref)
         if (ref.UsesGenerics[i])
             setGenerics(i, ref.getGenerics(i));
 
-    setIndices(ref.IdxCnt, (uint32_t*)&ref.Indices[0]);
+    if (ref.IdxCnt)
+        setIndices(ref.IdxCnt, (uint32_t*)&ref.Indices[0]);
     return *this;
 }
 
