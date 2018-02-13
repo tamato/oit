@@ -3,8 +3,6 @@
 
 #include <glad/glad.h>
 
-//#include "../GL/glew.h"
-//#include "../GL/wglew.h"
 #include "renderable.h"
 
 #include "vertexattributeindices.h"

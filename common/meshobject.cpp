@@ -2,8 +2,6 @@
 #include <iostream>
 
 #include <glad/glad.h>
-//#include "../GL/glew.h"
-//#include "../GL/wglew.h"
 
 #include "meshobject.h"
 
@@ -21,6 +19,7 @@ MeshObject::MeshObject()
     , AABBMax(-9e23f)
     , IndexRangeStart(0)
     , IndexRangeEnd(0)
+    , VertArray(0)
     , CleanedUp(true)
 {
     /************************************************************************************
@@ -106,13 +105,15 @@ void MeshObject::shutdown()
     glDeleteBuffers(1, &IBO);
     glDeleteVertexArrays(1, &VAO);
     CleanedUp = true;
+
+//    delete[] VertArray;
+//    VertArray = 0;
 }
 
 void MeshObject::setMesh(const MeshBuffer& meshBuffer)
 {
-    Mesh = meshBuffer;
     VertCnt = meshBuffer.getVertCnt();
-    computeBoundingBox();
+    computeBoundingBox(meshBuffer);
 
     unsigned int vertArrayCnt = VertCnt;
     int VertComponentCount = sizeof(glm::vec3) / sizeof(glm::vec3::value_type);
@@ -139,36 +140,35 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
         Stride += UVComponentCount;
     }
 
-    const float* pos = (float*)Mesh.getVerts().data();
-    const float* norm = (float*)Mesh.getNorms().data();
-    const float* uv = (float*)Mesh.getTexCoords(0).data();
-    float* vertArray = new float[VertCnt*Stride];
+    const float* pos = (float*)meshBuffer.getVerts().data();
+    const float* norm = (float*)meshBuffer.getNorms().data();
+    const float* uv = (float*)meshBuffer.getTexCoords(0).data();
+    VertArray = new float[VertCnt*Stride];
 
-    for (int i=0, idx=0, uvidx=0; i<VertCnt; i++, idx+=3, uvidx+=2)
+    for (unsigned int i=0, idx=0, uvidx=0; i<VertCnt; i++, idx+=3, uvidx+=2)
     {
         int vi = i*Stride;
-        vertArray[vi+0] = pos[idx+0];
-        vertArray[vi+1] = pos[idx+1];
-        vertArray[vi+2] = pos[idx+2];
+        VertArray[vi + 0] = pos[idx + 0];
+        VertArray[vi + 1] = pos[idx + 1];
+        VertArray[vi + 2] = pos[idx + 2];
 
         if (NormOffset)
         {
             int ni = i*Stride+NormOffset;
-            vertArray[ni+0] = norm[idx+0];
-            vertArray[ni+1] = norm[idx+1];
-            vertArray[ni+2] = norm[idx+2];
+            VertArray[ni + 0] = norm[idx + 0];
+            VertArray[ni + 1] = norm[idx + 1];
+            VertArray[ni + 2] = norm[idx + 2];
         }
 
         if (UvOffset)
         {
             int ti = i*Stride+UvOffset;
-            vertArray[ti+0] = uv[uvidx+0];
-            vertArray[ti+1] = uv[uvidx+1];
+            VertArray[ti + 0] = uv[uvidx + 0];
+            VertArray[ti + 1] = uv[uvidx + 1];
         }
     }
-
     // make values go from number of componets to number of bytes
-    Stride *= 4;
+    StrideBytes = Stride * 4;
     NormOffset *= 4;
     UvOffset *= 4;
 
@@ -185,22 +185,15 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
 
     // set vert buffer    
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-   /* glBufferData(GL_ARRAY_BUFFER,
-        VertCnt * Stride,
-        (GLvoid*)vertArray,
-        GL_STATIC_DRAW);*/
-
-    glBufferData(GL_ARRAY_BUFFER, VertCnt*Stride, 0, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, VertCnt*Stride, (const GLvoid*)vertArray);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, Stride, bufferOffest(0));
+    glBufferData(GL_ARRAY_BUFFER, VertCnt*StrideBytes, 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertCnt*StrideBytes, (const GLvoid*)VertArray);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, StrideBytes, bufferOffest(0));
 
     if (Normalidx)
-        glVertexAttribPointer(Normalidx, 3, GL_FLOAT, GL_FALSE, Stride, bufferOffest(NormOffset));
+        glVertexAttribPointer(Normalidx, 3, GL_FLOAT, GL_FALSE, StrideBytes, bufferOffest(NormOffset));
 
     if (UVidx)
-        glVertexAttribPointer(UVidx, 2, GL_FLOAT, GL_FALSE, Stride, bufferOffest(UvOffset));
-
-    delete [] vertArray;
+        glVertexAttribPointer(UVidx, 2, GL_FLOAT, GL_FALSE, StrideBytes, bufferOffest(UvOffset));
 
     IndiceCnt = meshBuffer.getIdxCnt();
     if (IndiceCnt)
@@ -208,7 +201,7 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,
             IndiceCnt * sizeof(GLuint),
-            (GLvoid*)Mesh.getIndices().data(),
+            (GLvoid*)meshBuffer.getIndices().data(),
             GL_STATIC_DRAW);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
@@ -220,9 +213,39 @@ void MeshObject::setMesh(const MeshBuffer& meshBuffer)
     glBindVertexArray(0);
 }
 
-void MeshObject::computeBoundingBox()
+void MeshObject::updateBuffers(const MeshBuffer& meshBuffer)
 {
-    const std::vector<glm::vec3>& verts = Mesh.getVerts();
+    const float* pos = (float*)meshBuffer.getVerts().data();
+    const float* norm = (float*)meshBuffer.getNorms().data();
+
+    if (0 == VertArray)
+        VertArray = new float[VertCnt * Stride];
+
+    for (unsigned int i = 0, idx = 0, uvidx = 0; i<VertCnt; i++, idx += 3, uvidx += 2)
+    {
+        int vi = i*Stride;
+        VertArray[vi + 0] = pos[idx + 0];
+        VertArray[vi + 1] = pos[idx + 1];
+        VertArray[vi + 2] = pos[idx + 2];
+
+        if (NormOffset)
+        {
+            int ni = i*Stride + NormOffset;
+            VertArray[ni + 0] = norm[idx + 0];
+            VertArray[ni + 1] = norm[idx + 1];
+            VertArray[ni + 2] = norm[idx + 2];
+        }
+    }
+
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, VertCnt*StrideBytes, 0, GL_DYNAMIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 0, VertCnt*StrideBytes, (const GLvoid*)VertArray);
+}
+
+void MeshObject::computeBoundingBox(const MeshBuffer& meshBuffer)
+{
+    const std::vector<glm::vec3>& verts = meshBuffer.getVerts();
     for (int i=0; i<(int)verts.size(); ++i)
     {
         if (verts[i][0] < AABBMin[0]) AABBMin[0] = verts[i][0];
@@ -238,8 +261,4 @@ void MeshObject::computeBoundingBox()
     PivotPoint = AABBMin + (diagonal * 0.5f);
 }
 
-const MeshBuffer& MeshObject::getMesh()
-{
-    return Mesh;
-}
 

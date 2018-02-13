@@ -17,10 +17,9 @@ public:
     void shutdown();
 
     void setMesh(const MeshBuffer& meshBuffer);
+    void updateBuffers(const MeshBuffer& meshBuffer);
 
-    void computeBoundingBox();
-
-    const MeshBuffer& getMesh();
+    void computeBoundingBox(const MeshBuffer& meshBuffer);
 
     glm::vec3 PivotPoint;
     glm::vec3 AABBMin;
@@ -39,19 +38,20 @@ private:
     unsigned int VBO;
     unsigned int IBO;
 
-    MeshBuffer Mesh;
-
     unsigned int Normalidx;
     unsigned int UVidx;
     unsigned int Color0idx;
     unsigned int Color1idx;
     
     unsigned int Stride;
+    unsigned int StrideBytes;
     
     unsigned int NormOffset;
     unsigned int UvOffset;
     unsigned int Color0Offset;
     unsigned int Color1Offset;
+
+    float *VertArray;
 
     bool CleanedUp;
 };

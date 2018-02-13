@@ -1,11 +1,9 @@
 #include <iostream>
 #include <algorithm>
 #include <iomanip>
+#include <sstream>
 
 #include <glad/glad.h>
-//#include "GL/glew.h"
-//#include "GL/wglew.h"
-//#pragma comment(lib, "glew32.lib")
 
 #include <GLFW/glfw3.h>
 
@@ -41,8 +39,6 @@ glm::mat3 NormalMatrix;
 
 glm::vec3 MoveToOrigin;
 
-glm::vec3 FrustumAnimationVector;
-glm::vec3 CurrentAnimatedVector;
 glm::vec3 SpinVector;
 glm::mat4 SpinRotationMatrix;
 glm::mat4 FrustumMatrix;
@@ -86,6 +82,16 @@ ProgramObject ClearImagesShader;
 
 ProgramObject FrustumClipShader;	// the frustum clips against the rest of the anatomy
 ProgramObject CavityClipShader;		// interior models clip against the frustum
+
+const int AnatomyFrameCount = 22;
+MeshBuffer AnimatedAnatomyFrames[AnatomyFrameCount];
+MeshBuffer AnimatedAnatomy;
+float AnimatedAnatomyCurrent = 0;
+float AnimatedAnatomyDuration = 1;
+
+const int FrustumFrameCount = 2;
+MeshBuffer AnimatedFrustumFrames[FrustumFrameCount];
+MeshBuffer AnimatedFrustum;
 
 const glm::vec4 ColorGradient0(241/255.f, 219/255.f, 142/255.f, 1.f);
 const glm::vec4 ColorGradient1(45/255.f, 135/255.f, 219/255.f, 1.f);
@@ -257,19 +263,22 @@ void setDataDir(int argc, char *argv[]){
 }
 
 void initFrustum(){
-    // load up mesh
-    ogle::ObjLoader loader;
-    //loader.load(DataDirectory + "large_simple_frustum.obj");
-    //loader.load(DataDirectory + "frustum.obj");
-    //loader.load(DataDirectory + "simple_frustum.obj");
-    loader.load(DataDirectory + "3D_TEE_Frustum_MitralPosition.obj");
 
-    MeshBuffer buffer;
-    buffer.setVerts(loader.getVertCount(), loader.getPositions());
-    buffer.setNorms(loader.getVertCount(), loader.getNormals());
-    buffer.setIndices(loader.getIndexCount(), loader.getIndices());
-    buffer.generateFaceNormals();
-    FrustumModel.init(buffer);
+    ogle::ObjLoader loaderA;
+    std::string fileNameA = DataDirectory + "Heart Interior Simple/3D_TEE_Frustum_MitralPosition.obj";
+    loaderA.load(fileNameA);
+    AnimatedFrustumFrames[0].setVerts(loaderA.getVertCount(), loaderA.getPositions());
+    AnimatedFrustumFrames[0].setIndices(loaderA.getIndexCount(), loaderA.getIndices());
+
+    ogle::ObjLoader loaderB;
+    std::string fileNameB = DataDirectory + "Heart Interior Simple/3D_TEE_Frustum_TricuspidPosition.obj";
+    loaderB.load(fileNameB);
+    AnimatedFrustumFrames[1].setVerts(loaderB.getVertCount(), loaderB.getPositions());
+    AnimatedFrustumFrames[1].setIndices(loaderB.getIndexCount(), loaderB.getIndices());
+
+    AnimatedFrustum = AnimatedFrustumFrames[0];
+    AnimatedFrustum.generateFaceNormals();
+    FrustumModel.init(AnimatedFrustum);
 
     std::map<unsigned int, std::string> shaders;
     shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuse.vert";
@@ -286,33 +295,33 @@ void initFrustum(){
 	shaders[GL_FRAGMENT_SHADER] = DataDirectory + "diffuseClipAgainstCavities.frag";
 	FrustumClipShader.init(shaders);
 
-    ogle::ObjLoader loaderTmp;
-    loaderTmp.load(DataDirectory + "3D_TEE_Frustum_TricuspidPosition.obj");
-    MeshBuffer bufferTmp;
-    bufferTmp.setVerts(loaderTmp.getVertCount(), loaderTmp.getPositions());
     MeshObject objectTmp;
-    objectTmp.init(bufferTmp);
+    objectTmp.init(AnimatedFrustumFrames[1]);
     glm::vec3 start = FrustumModel.PivotPoint;
     glm::vec3 end = objectTmp.PivotPoint;
-    FrustumAnimationVector = (end - start) * 1.5f;
-    CurrentAnimatedVector = glm::vec4(0);
+    glm::vec3 travelVector = (end - start) * 1.5f;
 
-    SpinVector = glm::cross(FrustumAnimationVector, glm::vec3(0, 1, 0));
+    SpinVector = glm::cross(travelVector, glm::vec3(0, 1, 0));
 }
 
 void initArt(){
-    // load up mesh
-    ogle::ObjLoader loader;
-    //loader.load(DataDirectory + "art.obj");
-    //loader.load(DataDirectory + "art_complex.obj");
-    loader.load(DataDirectory + "Heart_Interior_withValves_v01_f12.obj");
 
-    MeshBuffer buffer;
-    buffer.setVerts(loader.getVertCount(), loader.getPositions());
-    buffer.setNorms(loader.getVertCount(), loader.getNormals());
-    buffer.setIndices(loader.getIndexCount(), loader.getIndices());
-    buffer.generateFaceNormals();
-    ArtModel.init(buffer);
+    //loader.load(DataDirectory + "art.obj");
+    for (int i = 0; i < AnatomyFrameCount; ++i) {
+        ogle::ObjLoader loader;
+
+        std::stringstream ss;
+        ss << setfill('0') << std::setw(2) << (i + 1);
+        std::string fileName = DataDirectory + "Heart Interior Simple/Heart_Interior_withValves_v02_f" + ss.str() + ".obj";
+        loader.load(fileName);
+
+        AnimatedAnatomyFrames[i].setVerts(loader.getVertCount(), loader.getPositions());
+        AnimatedAnatomyFrames[i].setIndices(loader.getIndexCount(), loader.getIndices());
+    }
+    AnimatedAnatomy = AnimatedAnatomyFrames[0];
+    AnimatedAnatomy.generateFaceNormals();
+    ArtModel.init(AnimatedAnatomy);
+    //ArtModel.updateBuffers(AnimatedAnatomy);
 
     std::map<unsigned int, std::string> shaders;
     shaders[GL_VERTEX_SHADER] = DataDirectory + "diffuse.vert";
@@ -519,14 +528,55 @@ void update(){
         float percent = cos(FrustumAnimationValue);
         percent += 1.f; // move from [-1,1] to [0,2]
         percent *= .5;  // move from [0,2] to [0,1]
-        CurrentAnimatedVector = FrustumAnimationVector * percent;
 
         if (FrustumAnimated) {
             FrustumAnimationValue += deltaTime * AnimationModifier;
         }
+
+        const std::vector<glm::vec3>& vertsA = AnimatedFrustumFrames[0].getVerts();
+        const std::vector<glm::vec3>& vertsB = AnimatedFrustumFrames[1].getVerts();
+
+        size_t count = vertsA.size();
+        std::vector<glm::vec3> animatedVerts(count);
+        for (size_t i = 0; i < count; ++i) {
+            animatedVerts[i] = percent * (vertsB[i] - vertsA[i]) + vertsA[i];
+        }
+        AnimatedFrustum.setVerts(count, (const float*)animatedVerts.data());
+        AnimatedFrustum.generateFaceNormals();
+        FrustumModel.updateBuffers(AnimatedFrustum);
     }
 
     FrustumMatrix = RotationMatrix * SpinRotationMatrix;
+
+    // animate anatomy
+    {
+        AnimatedAnatomyCurrent += deltaTime;
+        AnimatedAnatomyCurrent = std::fmod(AnimatedAnatomyCurrent, AnimatedAnatomyDuration);
+        float percent = AnimatedAnatomyCurrent / AnimatedAnatomyDuration;
+
+        float frame = percent * (AnatomyFrameCount - 1);
+
+        float fframeA;
+        float tween = modf(frame, &fframeA);
+
+        int frameA = int(fframeA);
+        int frameB = (frameA + 1) % int(AnatomyFrameCount);
+
+        MeshBuffer meshA = AnimatedAnatomyFrames[frameA];
+        MeshBuffer meshB = AnimatedAnatomyFrames[frameB];
+
+        const std::vector<glm::vec3>& vertsA = meshA.getVerts();
+        const std::vector<glm::vec3>& vertsB = meshB.getVerts();
+ 
+        size_t count = vertsA.size();
+        std::vector<glm::vec3> animatedVerts(count);
+        for (size_t i = 0; i < count; ++i) {
+            animatedVerts[i] = tween * (vertsB[i] - vertsA[i]) + vertsA[i];
+        }
+        AnimatedAnatomy.setVerts(count, (const float*)animatedVerts.data());
+        AnimatedAnatomy.generateFaceNormals();
+        ArtModel.updateBuffers(AnimatedAnatomy);
+    }
 }
 
 void defaultRenderState() {
@@ -569,8 +619,6 @@ void renderFrustumToFrameBuffer() {
     CreateDepthVolume.setVec4((const float*)&MoveToOrigin, "MoveToOrigin");
     CreateDepthVolume.setMatrix44((const float*)&FrustumMatrix, "RotationMatrix");
     CreateDepthVolume.setMatrix44((const float*)&ProjectionView, "ProjectionView");
-
-    CreateDepthVolume.setVec4((const float*)&CurrentAnimatedVector, "AnimatedVector");
     FrustumModel.render();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -650,8 +698,6 @@ void renderAndClipFrustum() {
     FrustumClipShader.setVec4((const float*)&MoveToOrigin, "MoveToOrigin");
     FrustumClipShader.setMatrix44((const float*)&FrustumMatrix, "RotationMatrix");
 
-    FrustumClipShader.setVec4((const float*)&CurrentAnimatedVector, "AnimatedVector");
-
     FrustumClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
     FrustumClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
     FrustumClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
@@ -688,16 +734,12 @@ void renderAndClipCavities() {
     CavityClipShader.setVec4((const float*)&MoveToOrigin, "MoveToOrigin");
     CavityClipShader.setMatrix44((const float*)&RotationMatrix, "RotationMatrix");
 
-    glm::vec4 zero = glm::vec4(0);
-    CavityClipShader.setVec4((const float*)&zero, "AnimatedVector");
-
     CavityClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
     CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
     CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
     CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
     glm::vec2 res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
     CavityClipShader.setVec2((const float*)&res, "Resolution");
-    //VenousModel.render();
     ArtModel.render();
 
     glBindTexture(GL_TEXTURE_2D, 0);

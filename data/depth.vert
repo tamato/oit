@@ -7,7 +7,6 @@ layout(location = 0) uniform mat4 ProjectionView;
 
 layout(location = 4) uniform vec4 MoveToOrigin;
 layout(location = 5) uniform mat4 RotationMatrix;
-layout(location = 9) uniform vec4 AnimatedVector;
 
 layout(location = 0) out vec3 outNormal;
 layout(location = 1) out float Depth;
@@ -17,7 +16,7 @@ void main() {
 	origin = RotationMatrix * origin;
 	origin += MoveToOrigin;
 	
-    gl_Position = ProjectionView * (AnimatedVector + origin);
+    gl_Position = ProjectionView * origin;
     outNormal = Normal;
     Depth = gl_Position.z;    
 }
