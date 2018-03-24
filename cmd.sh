@@ -1,6 +1,6 @@
 #!/bin/bash
 
-build_dir=~/programming/build_oit
+build_dir=~/programming/oit_build
 out_data=$build_dir/data
 target=$build_dir/oit
 local_target=./oit
