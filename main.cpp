@@ -738,13 +738,45 @@ void renderAndClipCavities() {
     CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
     CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
     CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
-    glm::vec2 res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    auto res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
     CavityClipShader.setVec2((const float*)&res, "Resolution");
+    VenousModel.render();
     ArtModel.render();
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+<<<<<<< HEAD
+=======
+void renderAndClipValves() {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, FustrumVolume);
+
+    CavityClipShader.bind();
+    CavityClipShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+
+    CavityClipShader.setVec4((const float*)&ColorGradient0, "ColorGradient0");
+    CavityClipShader.setVec4((const float*)&ColorGradient1, "ColorGradient1");
+    CavityClipShader.setVec4((const float*)&ColorMinimum, "ColorMinimum");
+    CavityClipShader.setVec2((const float*)&ColorDepthRange, "ColorDepthRange");
+
+    auto res = glm::vec2(WINDOW_WIDTH, WINDOW_HEIGHT);
+    CavityClipShader.setVec2((const float*)&res, "Resolution");
+    ValvesModel.render();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void renderValvesDiffuse() {
+    FustrumShader.bind();
+    FustrumShader.setMatrix44((const float*)&ProjectionView, "ProjectionView");
+    auto color = glm::vec4(1,0,1,1);
+    FustrumShader.setVec4((const float*)&color, "Color");
+    ValvesModel.render();
+}
+
+>>>>>>> minor
 void render(){
     defaultRenderState();
     renderFrustumToFrameBuffer();
